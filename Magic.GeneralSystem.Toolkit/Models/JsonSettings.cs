@@ -58,8 +58,6 @@ namespace Magic.GeneralSystem.Toolkit.Models
             Load(password);
         }
 
-
-
         private bool HasEncryptedProperties(Type type)
         {
             foreach (var prop in type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
@@ -200,7 +198,7 @@ namespace Magic.GeneralSystem.Toolkit.Models
                 }
             }
         }
-       
+
         private string? GetPasswordHashFromJson()
         {
             try
@@ -241,20 +239,27 @@ namespace Magic.GeneralSystem.Toolkit.Models
             }
         }*/
 
-        public void Save()
+        public void Save(bool runEncryption = true, HashSet<object>? processedObjects = null)
         {
             try
             {
                 if (!Directory.Exists(FullDirectoryPath))
                     Directory.CreateDirectory(FullDirectoryPath);
 
-                EncryptProperties(this);
+                if (runEncryption)
+                    EncryptProperties(this); // ✅ Only encrypt once at the top level!
 
                 var json = JsonSerializer.Serialize((T)this, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(FullFilePath, json);
 
-                // 🔥 Now process and save any nested JsonSettings instances
-                RecursivelySave(typeof(T), this, new HashSet<object>());
+                // 🔥 Now process and save any nested JsonSettings instances, ensuring we don’t save the same object twice
+                if (processedObjects == null)
+                    processedObjects = new HashSet<object>();
+
+                RecursivelySave(typeof(T), this, processedObjects);
+
+                // 🔄 Reload settings to restore in-memory decrypted values
+                Load(_memoryPassword);
             }
             catch (Exception ex)
             {
@@ -262,22 +267,22 @@ namespace Magic.GeneralSystem.Toolkit.Models
             }
         }
 
+
         private void RecursivelySave(Type rootType, object obj, HashSet<object> processedObjects)
         {
             if (obj == null || processedObjects.Contains(obj))
                 return;
 
-            // ✅ Track processed objects to prevent infinite recursion
+            // ✅ Track processed settings objects to prevent redundant saves
             processedObjects.Add(obj);
 
             Type objType = obj.GetType();
 
-            // 🔍 Fetch properties dynamically, just like in your Load method
             var properties = objType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
                 .Where(p =>
-                    !p.GetIndexParameters().Any() &&  // 🚫 Skip indexer properties (e.g., Item[], Chars[])
-                    !p.DeclaringType?.Namespace?.StartsWith("System.Collections") == true &&  // 🚫 Skip system collection metadata
-                    !p.Name.StartsWith("System.Collections.") // 🚫 Skip interface metadata
+                    !p.GetIndexParameters().Any() &&
+                    !p.DeclaringType?.Namespace?.StartsWith("System.Collections") == true &&
+                    !p.Name.StartsWith("System.Collections.")
                 ).ToArray();
 
             foreach (var prop in properties)
@@ -289,27 +294,22 @@ namespace Magic.GeneralSystem.Toolkit.Models
 
                     Type propType = propValue.GetType();
 
-                    // 🔥 If it's a JsonSettings<T> instance, save it
-                    if (IsJsonSettingsType(propType))
+                    if (IsJsonSettingsType(propType) && !processedObjects.Contains(propValue))
                     {
+                        // 🔥 Call Save() with `false` and pass processedObjects to track already-saved items
                         var saveMethod = propType.GetMethod("Save", BindingFlags.Public | BindingFlags.Instance);
-                        saveMethod?.Invoke(propValue, null);
+                        saveMethod?.Invoke(propValue, new object[] { false, processedObjects });
                     }
-
-                    // 🔄 If it's a collection (List<T>, arrays), process its elements recursively
                     else if (typeof(IEnumerable).IsAssignableFrom(prop.PropertyType) && prop.PropertyType != typeof(string))
                     {
                         foreach (var item in (IEnumerable)propValue)
                         {
                             if (item != null)
                             {
-                                // ✅ Recurse into collection items EVEN IF they are NOT JsonSettings<T>
                                 RecursivelySave(item.GetType(), item, processedObjects);
                             }
                         }
                     }
-
-                    // 🔄 If it's a normal class (not a system type), process its properties recursively
                     else if (prop.PropertyType.IsClass && !propType.Namespace.StartsWith("System"))
                     {
                         RecursivelySave(prop.PropertyType, propValue, processedObjects);
@@ -321,6 +321,7 @@ namespace Magic.GeneralSystem.Toolkit.Models
                 }
             }
         }
+
 
         // 🔥 Utility method to check if a type inherits from JsonSettings<T>
         private bool IsJsonSettingsType(Type type)
@@ -393,8 +394,6 @@ namespace Magic.GeneralSystem.Toolkit.Models
                 throw new Exception($"Invalid settings file detected. Resetting: {FullFilePath} - Error: {ex.Message}");
             }
         }
-
-
 
         private object? RecursivelyProcessObject(object? obj, Type targetType, Dictionary<PropertyInfo, Type> encryptedProperties)
         {
