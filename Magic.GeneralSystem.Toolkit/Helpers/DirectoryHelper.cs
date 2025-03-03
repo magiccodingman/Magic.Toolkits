@@ -12,6 +12,61 @@ namespace Magic.GeneralSystem.Toolkit.Helpers
     public static class DirectoryHelper
     {
         /// <summary>
+        /// Determines whether a given path is a full (absolute) path or a relative path.
+        /// </summary>
+        public static bool IsFullPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+
+            // If the path is rooted (e.g., "C:\", "/home/user", or "\\Server\Share"), it's absolute
+            if (Path.IsPathRooted(path))
+            {
+                return true;
+            }
+
+            // Otherwise, it's relative (even if it doesn't start with "." or "..")
+            return false;
+        }
+        public static string GetResolvedPath(string fullPath, string relativePath)
+        {
+            if (string.IsNullOrWhiteSpace(fullPath))
+                throw new ArgumentException("Full path cannot be null or empty.", nameof(fullPath));
+
+            if (string.IsNullOrWhiteSpace(relativePath))
+                throw new ArgumentException("Relative path cannot be null or empty.", nameof(relativePath));
+
+            if (!Path.IsPathRooted(fullPath))
+                throw new ArgumentException($"The full path must be an absolute path. Given: {fullPath}", nameof(fullPath));
+
+            // If fullPath is a file, get its directory
+            if (File.Exists(fullPath))
+            {
+                fullPath = Path.GetDirectoryName(fullPath) ?? throw new InvalidOperationException("Unable to determine the directory of the provided file path.");
+            }
+            else if (!Directory.Exists(fullPath))
+            {
+                throw new DirectoryNotFoundException($"The provided full path does not exist as a directory: {fullPath}");
+            }
+
+            try
+            {
+                // Combine and resolve the absolute path
+                string combinedPath = Path.GetFullPath(Path.Combine(fullPath, relativePath));
+
+                // Ensure the resolved path exists
+                if (!Directory.Exists(combinedPath) && !File.Exists(combinedPath))
+                    throw new FileNotFoundException($"Resolved path does not exist: {combinedPath}");
+
+                return combinedPath;
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Error resolving path. FullPath: {fullPath}, RelativePath: {relativePath}. Error: {ex.Message}", ex);
+            }
+        }
+
+        /// <summary>
         /// Extremely efficient method of returning all the directories that can be found recursively. 
         /// Method utilizes sharded model for returned paths to prevent memory overflow in case of 
         /// extreme scenarios of grabbing all paths within deeply nested large starting points.

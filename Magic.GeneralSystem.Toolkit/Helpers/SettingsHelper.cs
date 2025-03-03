@@ -28,6 +28,9 @@ namespace Magic.GeneralSystem.Toolkit.Helpers
         // Reads input from the user and safely converts it to the correct property type
         public static TProperty ReadUserInput<TProperty>(string propertyName)
         {
+            if (!string.IsNullOrWhiteSpace(propertyName))
+                propertyName = propertyName.Trim();
+
             Type propertyType = Nullable.GetUnderlyingType(typeof(TProperty)) ?? typeof(TProperty);
 
             if (!propertyType.IsPrimitive && propertyType != typeof(string))
@@ -62,10 +65,52 @@ namespace Magic.GeneralSystem.Toolkit.Helpers
             if (!(propertyExpression.Body is MemberExpression memberExpression))
                 throw new ArgumentException("Expression must be a property", nameof(propertyExpression));
 
-            if (!(memberExpression.Member is PropertyInfo propertyInfo))
+            List<MemberExpression> memberPath = new();
+
+            // Collect all members in the property chain (handling nested properties)
+            while (memberExpression != null)
+            {
+                memberPath.Insert(0, memberExpression); // Insert at the beginning (reverse order)
+                if (memberExpression.Expression is MemberExpression innerMember)
+                    memberExpression = innerMember;
+                else
+                    break;
+            }
+
+            // Resolve the parent object (traverse the chain, stopping before the last property)
+            object? parentObject = target;
+            for (int i = 0; i < memberPath.Count - 1; i++)
+            {
+                var parentProperty = memberPath[i].Member as PropertyInfo;
+                if (parentProperty == null)
+                    throw new ArgumentException("Expression must refer to a property", nameof(propertyExpression));
+
+                // Get the current value of the parent object
+                var currentValue = parentProperty.GetValue(parentObject);
+                if (currentValue == null)
+                {
+                    // Attempt to initialize it if it's a class
+                    if (parentProperty.PropertyType.GetConstructor(Type.EmptyTypes) != null)
+                    {
+                        currentValue = Activator.CreateInstance(parentProperty.PropertyType);
+                        parentProperty.SetValue(parentObject, currentValue);
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException($"Cannot set property {parentProperty.Name} because its parent is null.");
+                    }
+                }
+                parentObject = currentValue;
+            }
+
+            // Set the final property
+            var finalProperty = memberPath[^1].Member as PropertyInfo;
+            if (finalProperty == null)
                 throw new ArgumentException("Expression must refer to a property", nameof(propertyExpression));
 
-            propertyInfo.SetValue(target, value);
+            finalProperty.SetValue(parentObject, value);
         }
+
+
     }
 }

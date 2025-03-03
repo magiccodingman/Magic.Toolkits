@@ -223,7 +223,7 @@ namespace Magic.GeneralSystem.Toolkit.Models
         }
 
 
-        public void Save()
+        /*public void Save()
         {
             try
             {
@@ -239,7 +239,103 @@ namespace Magic.GeneralSystem.Toolkit.Models
             {
                 Console.WriteLine($"Failed to save settings: {ex.Message}");
             }
+        }*/
+
+        public void Save()
+        {
+            try
+            {
+                if (!Directory.Exists(FullDirectoryPath))
+                    Directory.CreateDirectory(FullDirectoryPath);
+
+                EncryptProperties(this);
+
+                var json = JsonSerializer.Serialize((T)this, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(FullFilePath, json);
+
+                // 🔥 Now process and save any nested JsonSettings instances
+                RecursivelySave(typeof(T), this, new HashSet<object>());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to save settings: {ex.Message}");
+            }
         }
+
+        private void RecursivelySave(Type rootType, object obj, HashSet<object> processedObjects)
+        {
+            if (obj == null || processedObjects.Contains(obj))
+                return;
+
+            // ✅ Track processed objects to prevent infinite recursion
+            processedObjects.Add(obj);
+
+            Type objType = obj.GetType();
+
+            // 🔍 Fetch properties dynamically, just like in your Load method
+            var properties = objType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)
+                .Where(p =>
+                    !p.GetIndexParameters().Any() &&  // 🚫 Skip indexer properties (e.g., Item[], Chars[])
+                    !p.DeclaringType?.Namespace?.StartsWith("System.Collections") == true &&  // 🚫 Skip system collection metadata
+                    !p.Name.StartsWith("System.Collections.") // 🚫 Skip interface metadata
+                ).ToArray();
+
+            foreach (var prop in properties)
+            {
+                try
+                {
+                    var propValue = prop.GetValue(obj);
+                    if (propValue == null) continue;
+
+                    Type propType = propValue.GetType();
+
+                    // 🔥 If it's a JsonSettings<T> instance, save it
+                    if (IsJsonSettingsType(propType))
+                    {
+                        var saveMethod = propType.GetMethod("Save", BindingFlags.Public | BindingFlags.Instance);
+                        saveMethod?.Invoke(propValue, null);
+                    }
+
+                    // 🔄 If it's a collection (List<T>, arrays), process its elements recursively
+                    else if (typeof(IEnumerable).IsAssignableFrom(prop.PropertyType) && prop.PropertyType != typeof(string))
+                    {
+                        foreach (var item in (IEnumerable)propValue)
+                        {
+                            if (item != null)
+                            {
+                                // ✅ Recurse into collection items EVEN IF they are NOT JsonSettings<T>
+                                RecursivelySave(item.GetType(), item, processedObjects);
+                            }
+                        }
+                    }
+
+                    // 🔄 If it's a normal class (not a system type), process its properties recursively
+                    else if (prop.PropertyType.IsClass && !propType.Namespace.StartsWith("System"))
+                    {
+                        RecursivelySave(prop.PropertyType, propValue, processedObjects);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Warning: Failed to process property {prop.Name} in {objType.Name}. Error: {ex.Message}");
+                }
+            }
+        }
+
+        // 🔥 Utility method to check if a type inherits from JsonSettings<T>
+        private bool IsJsonSettingsType(Type type)
+        {
+            while (type != null)
+            {
+                if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(JsonSettings<>))
+                {
+                    return true;
+                }
+                type = type.BaseType;
+            }
+            return false;
+        }
+
 
         public void Load(string? password = null)
         {
@@ -452,21 +548,6 @@ namespace Magic.GeneralSystem.Toolkit.Models
 
             return obj;
         }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
         private void EncryptProperties(object obj)
         {

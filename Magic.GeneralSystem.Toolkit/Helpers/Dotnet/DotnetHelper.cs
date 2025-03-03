@@ -14,8 +14,9 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
         /// Runs a dotnet command, streams output in real-time, and returns the result.
         /// </summary>
         /// <param name="arguments">The dotnet CLI arguments (e.g., "tool list -g")</param>
-        /// <returns>A MagicCliResponse containing success status and full output.</returns>
-        public static async Task<MagicSystemResponse> RunDotnetCommandAsync(string arguments)
+        /// <param name="workingDirectory">Optional working directory for the command. If provided, executes within that path.</param>
+        /// <returns>A MagicSystemResponse containing success status and full output.</returns>
+        public static async Task<MagicSystemResponse> RunDotnetCommandAsync(string arguments, string? workingDirectory = null)
         {
             var response = new MagicSystemResponse();
             var outputBuilder = new StringBuilder();
@@ -29,8 +30,25 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
-                    CreateNoWindow = true
+                    CreateNoWindow = true,
                 };
+
+                // Set working directory if provided
+                if (!string.IsNullOrWhiteSpace(workingDirectory))
+                {
+                    if (Directory.Exists(workingDirectory))
+                    {
+                        processStartInfo.WorkingDirectory = workingDirectory;
+                    }
+                    else
+                    {
+                        return new MagicSystemResponse
+                        {
+                            Success = false,
+                            Message = $"Error: The provided working directory '{workingDirectory}' does not exist."
+                        };
+                    }
+                }
 
                 using var process = new Process { StartInfo = processStartInfo };
 
@@ -80,7 +98,22 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
         /// <param name="toolName">The name of the tool to install.</param>
         /// <param name="updateIfInstalled">If true, updates the tool if it is already installed.</param>
         /// <param name="installGlobally">If true, installs the tool globally.</param>
-        public static async Task<MagicSystemResponse> InstallOrUpdateToolAsync(string toolName, bool updateIfInstalled = false, bool installGlobally = false)
+        public static async Task<MagicSystemResponse> InstallOrUpdateToolAsync(string toolName,
+            bool updateIfInstalled = false, bool installGlobally = false)
+        {
+            return await InstallOrUpdateToolAsync(toolName, null, updateIfInstalled, installGlobally);
+        }
+
+        /// <summary>
+        /// Installs a .NET tool if not already installed, and optionally updates it if it exists.
+        /// </summary>
+        /// <param name="toolName">The name of the tool to install.</param>
+        /// <param name="workingDirectory">Optional working directory for the command. If provided, executes within that path.</param>
+        /// <param name="updateIfInstalled">If true, updates the tool if it is already installed.</param>
+        /// <param name="installGlobally">If true, installs the tool globally.</param>
+        public static async Task<MagicSystemResponse> InstallOrUpdateToolAsync(string toolName, 
+            string? workingDirectory,
+            bool updateIfInstalled = false, bool installGlobally = false)
         {
             string globalFlag = installGlobally ? "--global" : "";
 
@@ -100,7 +133,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
             // If the tool is already installed and update is requested, update it
             if (isInstalled && updateIfInstalled)
             {
-                var updateResponse = await RunDotnetCommandAsync($"tool update {globalFlag} {toolName}");
+                var updateResponse = await RunDotnetCommandAsync($"tool update {globalFlag} {toolName}", workingDirectory);
                 return new MagicSystemResponse
                 {
                     Success = updateResponse.Success,
@@ -110,7 +143,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
             // If not installed, install it
             else if (!isInstalled)
             {
-                var installResponse = await RunDotnetCommandAsync($"tool install {globalFlag} {toolName}");
+                var installResponse = await RunDotnetCommandAsync($"tool install {globalFlag} {toolName}", workingDirectory);
                 return new MagicSystemResponse
                 {
                     Success = installResponse.Success,
