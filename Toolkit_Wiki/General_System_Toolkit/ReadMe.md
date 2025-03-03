@@ -1,0 +1,1 @@
+Helpful classes and tools to utilize general file system code with helpers, caching, and more. It also helps ease automated use of dotnet commands and system commands. The entire library is also meant to be fully cross platform.

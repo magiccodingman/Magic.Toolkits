@@ -13,7 +13,9 @@ namespace Magic.GeneralSystem.Toolkit
     public class MagicSystemInitialize
     {
         private readonly bool RequiresDotnet;
+        private readonly string? StorageFolderName;
         private readonly List<OSPlatform>? SupportedOperatingSystems;
+
 
         /// <summary>
         /// 
@@ -35,7 +37,31 @@ namespace Magic.GeneralSystem.Toolkit
             RequiresDotnet = requiresDotnet;
         }
 
-        public async Task<AppConfig> BuildAppConfig()
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="storageFolderName">Folder name desired for where you'll place your stored content</param>
+        /// <param name="requiresDotnet">Does the CLI app need to utilize dotnet commands?</param>
+        /// <param name="supportedPlatforms">The operating systems your CLI app supports. Leave null for 'any'.</param>
+        public MagicSystemInitialize(string storageFolderName, IEnumerable<OSPlatform>? supportedPlatforms, bool requiresDotnet = false)
+        {
+            RequiresDotnet = requiresDotnet;
+            SupportedOperatingSystems = supportedPlatforms?.ToList();
+            StorageFolderName = storageFolderName;
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="storageFolderName">Folder name desired for where you'll place your stored content</param>
+        /// <param name="requiresDotnet">Does the CLI app need to utilize dotnet commands?</param>
+        public MagicSystemInitialize(string storageFolderName, bool requiresDotnet = false)
+        {
+            RequiresDotnet = requiresDotnet;
+            StorageFolderName = storageFolderName;
+        }
+
+        public async Task<AppConfig> BuildAppConfig(string? overrideStorageDirectoryPath = null)
         {
             AppConfig appConfig = new AppConfig()
             {
@@ -43,6 +69,13 @@ namespace Magic.GeneralSystem.Toolkit
                 OperatingSystem = OperatingSystemHelper.GetOperatingSystem(),
                 RequiresDotnet = this.RequiresDotnet
             };
+            if (!string.IsNullOrWhiteSpace(StorageFolderName))
+            {
+                if (!string.IsNullOrWhiteSpace(overrideStorageDirectoryPath))
+                    appConfig.PreferredStoragePath = Path.Combine(overrideStorageDirectoryPath, StorageFolderName);
+                else
+                    appConfig.PreferredStoragePath = appConfig.FileSystem.FindPreferredStorageLocation(StorageFolderName)?.FullPath;
+            }
 
             bool OsSupported = OperatingSystemHelper.ValidateSupportedOs(SupportedOperatingSystems, appConfig.OperatingSystem);
             if (!OsSupported)

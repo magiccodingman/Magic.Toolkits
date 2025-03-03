@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Obsidian personal settings
+Toolkit_Wiki/.obsidian/workspace.json
+Toolkit_Wiki/.obsidian/appearance.json

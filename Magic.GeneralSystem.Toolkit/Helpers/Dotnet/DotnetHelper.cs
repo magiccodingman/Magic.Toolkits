@@ -73,5 +73,56 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
 
             return response;
         }
+
+        /// <summary>
+        /// Installs a .NET tool if not already installed, and optionally updates it if it exists.
+        /// </summary>
+        /// <param name="toolName">The name of the tool to install.</param>
+        /// <param name="updateIfInstalled">If true, updates the tool if it is already installed.</param>
+        /// <param name="installGlobally">If true, installs the tool globally.</param>
+        public static async Task<MagicSystemResponse> InstallOrUpdateToolAsync(string toolName, bool updateIfInstalled = false, bool installGlobally = false)
+        {
+            string globalFlag = installGlobally ? "--global" : "";
+
+            // Check if the tool is installed
+            var checkResponse = await RunDotnetCommandAsync($"tool list {globalFlag}");
+            if (!checkResponse.Success)
+            {
+                return new MagicSystemResponse
+                {
+                    Success = false,
+                    Message = $"Failed to check installed tools: {checkResponse.Message}"
+                };
+            }
+
+            bool isInstalled = checkResponse.Message.Contains(toolName, StringComparison.OrdinalIgnoreCase);
+
+            // If the tool is already installed and update is requested, update it
+            if (isInstalled && updateIfInstalled)
+            {
+                var updateResponse = await RunDotnetCommandAsync($"tool update {globalFlag} {toolName}");
+                return new MagicSystemResponse
+                {
+                    Success = updateResponse.Success,
+                    Message = updateResponse.Message
+                };
+            }
+            // If not installed, install it
+            else if (!isInstalled)
+            {
+                var installResponse = await RunDotnetCommandAsync($"tool install {globalFlag} {toolName}");
+                return new MagicSystemResponse
+                {
+                    Success = installResponse.Success,
+                    Message = installResponse.Message
+                };
+            }
+
+            return new MagicSystemResponse
+            {
+                Success = true,
+                Message = $"{toolName} is already installed and no update was requested."
+            };
+        }
     }
 }

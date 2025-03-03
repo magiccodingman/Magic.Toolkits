@@ -1,4 +1,5 @@
-﻿using Magic.GeneralSystem.Toolkit.Settings;
+﻿using Magic.GeneralSystem.Toolkit.Helpers;
+using Magic.GeneralSystem.Toolkit.Settings;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,5 +20,8 @@ namespace Magic.GeneralSystem.Toolkit
         public bool RequiresDotnet { get; set; } = false;
 
         public OSPlatform OperatingSystem { get; set; }
+
+        public MagicFileSystem FileSystem { get; set; } = new MagicFileSystem();
+        public string? PreferredStoragePath { get; set; }
     }
 }

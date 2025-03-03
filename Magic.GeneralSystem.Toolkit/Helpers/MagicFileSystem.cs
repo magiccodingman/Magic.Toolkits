@@ -322,5 +322,82 @@ namespace Magic.GeneralSystem.Toolkit.Helpers
                 GetMagicDirectory(directoryPath, true); // ✅ Ensure it's added to cache
         }
 
+        /// <summary>
+        /// Returns the preferred full path location of where you should place your app content. 
+        /// Provide the folder name of what you'd like to name the folder where your content will 
+        /// be stored.
+        /// </summary>
+        /// <param name="folderName"></param>
+        /// <param name="requiresExecutePermission"></param>
+        /// <param name="forceRefresh"></param>
+        /// <returns>Returns full</returns>
+        public MagicDirectory? FindPreferredStorageLocation(string folderName, bool requiresExecutePermission = false, bool forceRefresh = false)
+        {
+            List<string> possibleLocations = new List<string>();
+
+            if (!requiresExecutePermission)
+            {
+                possibleLocations.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), folderName));
+                possibleLocations.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folderName));
+                possibleLocations.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), folderName));
+            }
+            else
+            {
+                // Prefer the primary app base path first if execution is required
+                possibleLocations.Add(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, folderName));
+                possibleLocations.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), folderName));
+                possibleLocations.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), folderName));
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                string? windowsHome = Environment.GetEnvironmentVariable("HOME");
+                if (!string.IsNullOrWhiteSpace(windowsHome))
+                    possibleLocations.Add(Path.Combine(windowsHome, folderName)); // Azure Windows App Service
+
+                possibleLocations.Add(Path.Combine("D:\\home", folderName)); // Default Azure Windows App Service
+                possibleLocations.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), folderName)); // Windows system-wide storage
+            }
+
+            if (OperatingSystem.IsLinux())
+            {
+                string linuxHome = Environment.GetEnvironmentVariable("HOME") ?? "/home";
+                possibleLocations.Add(Path.Combine(linuxHome, folderName)); // Linux user home
+                possibleLocations.Add(Path.Combine("/app/data", folderName)); // Docker container mount path
+            }
+
+            possibleLocations.Add(Path.Combine(Path.GetTempPath(), folderName)); // Last resort: system temp folder
+
+            foreach (var path in possibleLocations)
+            {
+                Console.WriteLine($"Checking path: {path}");
+
+                var magicDir = GetMagicDirectory(path, forceRefresh);
+
+                if (magicDir == null)
+                {
+                    // ✅ If directory doesn’t exist, create it & refresh cache
+                    CreateDirectory(path);
+                    magicDir = GetMagicDirectory(path, true);
+                }
+
+                if (magicDir != null && magicDir.Permissions != null)
+                {
+                    bool hasRequiredPermissions = magicDir.Permissions.Read && magicDir.Permissions.Write;
+
+                    if (requiresExecutePermission)
+                        hasRequiredPermissions &= magicDir.Permissions.Execute;
+
+                    if (hasRequiredPermissions)
+                    {
+                        Console.WriteLine($"Using path: {magicDir.FullPath}");
+                        return magicDir;
+                    }
+                }
+            }
+
+            return null; // No valid storage location found
+        }
+
     }
 }
