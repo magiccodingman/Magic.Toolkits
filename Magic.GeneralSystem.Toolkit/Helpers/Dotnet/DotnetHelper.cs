@@ -76,7 +76,8 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
         /// <param name="arguments">The dotnet CLI arguments (e.g., "tool list -g")</param>
         /// <param name="workingDirectory">Optional working directory for the command. If provided, executes within that path.</param>
         /// <returns>A MagicSystemResponse containing success status and full output.</returns>
-        public static async Task<MagicSystemResponse> RunDotnetCommandAsync(string arguments, string? workingDirectory = null)
+        public static async Task<MagicSystemResponse> RunDotnetCommandAsync(string arguments, 
+            string? workingDirectory = null, string fileName = "dotnet")
         {
             var response = new MagicSystemResponse();
             var outputBuilder = new StringBuilder();
@@ -85,7 +86,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
             {
                 var processStartInfo = new ProcessStartInfo
                 {
-                    FileName = "dotnet",
+                    FileName = fileName,
                     Arguments = arguments,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
@@ -146,7 +147,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
             catch (Exception ex)
             {
                 response.Success = false;
-                response.Message = $"Error running dotnet command: {ex.Message}";
+                response.Message = $"Error running {fileName} command: {ex.Message}";
             }
 
             return response;

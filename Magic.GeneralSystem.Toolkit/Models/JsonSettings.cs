@@ -14,6 +14,35 @@ namespace Magic.GeneralSystem.Toolkit.Models
 {
     public abstract class JsonSettings<T> where T : JsonSettings<T>
     {
+        [JsonInclude]
+        private Guid _id;
+
+        [JsonIgnore]
+        public Guid Id
+        {
+            get
+            {
+                if (_id == Guid.Empty)
+                {
+                    _id = Guid.NewGuid();
+                }
+                return _id;
+            }
+            set
+            {
+                if (value == Guid.Empty)
+                {
+                    _id = Guid.NewGuid();
+                }
+                else
+                {
+                    _id = value;
+                }
+            }
+        }
+
+
+
         [JsonIgnore]
         public string FullDirectoryPath { get; protected set; }
 
@@ -270,8 +299,9 @@ namespace Magic.GeneralSystem.Toolkit.Models
 
         private void RecursivelySave(Type rootType, object obj, HashSet<object> processedObjects)
         {
-            if (obj == null || processedObjects.Contains(obj))
-                return;
+            /*if (obj == null || processedObjects.Contains(obj)
+                )
+                return;*/
 
             // ✅ Track processed settings objects to prevent redundant saves
             processedObjects.Add(obj);
@@ -358,6 +388,15 @@ namespace Magic.GeneralSystem.Toolkit.Models
                 });
 
                 if (settingsDict == null) return;
+
+                if (settingsDict.TryGetValue("_id", out object? val))
+                {
+                    if(val != null && Guid.TryParse(val.ToString(), out Guid id))
+                    {
+                        Id = id;
+                    }
+                }
+
 
                 // 🛑 RESET _processedDecryption to ensure a fresh run
                 _processedDecryption = new HashSet<string>();

@@ -9,6 +9,48 @@ namespace Magic.GeneralSystem.Toolkit.Helpers
 {
     public static class FileHelper
     {
+        public static string RemoveFileExtension(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName))
+                throw new ArgumentException("File name cannot be null or empty.", nameof(fileName));
+
+            return Path.GetFileNameWithoutExtension(fileName);
+        }
+
+        public static string GetFileNameFromPath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+
+            return Path.GetFileName(path); // This safely handles both full paths and just filenames.
+        }
+
+        public static IEnumerable<string> GetFilesInDirectory(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                throw new ArgumentException("Path cannot be null or empty.", nameof(path));
+
+            if (!Directory.Exists(path))
+                throw new DirectoryNotFoundException($"The specified directory does not exist: {path}");
+
+            return Directory.GetFiles(path);
+        }
+
+        public static IEnumerable<string> FilterFilesByExtension(IEnumerable<string> files, string extension)
+        {
+            if (files == null)
+                throw new ArgumentNullException(nameof(files), "Files collection cannot be null.");
+
+            if (string.IsNullOrWhiteSpace(extension))
+                throw new ArgumentException("Extension cannot be null or empty.", nameof(extension));
+
+            string sanitizedExtension = extension.Trim();
+            if (sanitizedExtension.StartsWith("."))
+                sanitizedExtension = sanitizedExtension.Substring(1);
+
+            return files.Where(file => Path.GetExtension(file)?.TrimStart('.')?.Equals(sanitizedExtension, StringComparison.OrdinalIgnoreCase) == true);
+        }
+
         public static void TrueDelete(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
