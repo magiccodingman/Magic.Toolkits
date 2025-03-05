@@ -22,11 +22,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers
 
         private string NormalizeAndResolvePath(string path)
         {
-            if (string.IsNullOrWhiteSpace(path))
-                path = Environment.CurrentDirectory; // Default to relative path
-
-            path = Path.GetFullPath(path.Trim());
-            return path.StartsWith("\\\\") ? path : path.Replace('\\', '/');
+            return DirectoryHelper.NormalizePath(path);
         }
 
         public MagicDirectory? GetMagicDirectory(string directoryPath, bool forceRefresh = false)

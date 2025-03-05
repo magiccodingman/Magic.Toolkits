@@ -11,6 +11,15 @@ namespace Magic.GeneralSystem.Toolkit.Helpers
 {
     public static class DirectoryHelper
     {
+        public static string NormalizePath(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+                path = Environment.CurrentDirectory; // Default to relative path
+
+            path = Path.GetFullPath(path.Trim());
+            return path.StartsWith("\\\\") ? path : path.Replace('\\', '/');
+        }
+
         /// <summary>
         /// Determines whether a given path is a full (absolute) path or a relative path.
         /// </summary>
