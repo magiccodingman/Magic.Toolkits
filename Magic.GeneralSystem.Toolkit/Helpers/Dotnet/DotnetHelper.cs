@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -10,6 +11,74 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
 {
     public static class DotnetHelper
     {
+        /// <summary>
+        /// Builds a .NET project dynamically and loads its assemblies at runtime.
+        /// </summary>
+        /// <param name="projectPath">The full path to the target .NET project (.csproj).</param>
+        /// <returns>A response indicating success/failure and loaded assembly details.</returns>
+        public static async Task<MagicSystemResponse<List<Assembly>>> BuildAndLoadProject(string projectPath)
+        {
+            Console.Clear();
+            Console.WriteLine($"Preparing to build project: {projectPath}");
+
+            if (!Directory.Exists(projectPath))
+            {
+                return new MagicSystemResponse<List<Assembly>>
+                {
+                    Success = false,
+                    Message = $"Error: Project path does not exist: {projectPath}"
+                };
+            }
+
+            // Define the stable build output path (bin/MagicScaffolding)
+            string binPath = Path.Combine(projectPath, "bin", "MagicScaffolding");
+
+            // Ensure the build directory exists
+            if (!Directory.Exists(binPath))
+            {
+                Directory.CreateDirectory(binPath);
+                Console.WriteLine($"Created build directory: {binPath}");
+            }
+
+            // Run the build process, specifying the output directory
+            string buildCommand = $"build --configuration Debug --output \"{binPath}\"" ;
+            var buildResponse = await RunDotnetCommandAsync(buildCommand, projectPath);
+
+            if (!buildResponse.Success)
+            {
+                return new MagicSystemResponse<List<Assembly>>
+                {
+                    Success = false,
+                    Message = $"Build failed: {buildResponse.Message}"
+                };
+            }
+
+            Console.WriteLine("Build successful! Loading assemblies...");
+
+            // Load all assemblies from the stable build output directory
+            var loadedAssemblies = new List<Assembly>();
+            foreach (var dll in Directory.GetFiles(binPath, "*.dll"))
+            {
+                try
+                {
+                    var assembly = Assembly.LoadFrom(dll);
+                    loadedAssemblies.Add(assembly);
+                    Console.WriteLine($"Loaded: {assembly.FullName}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to load assembly {dll}: {ex.Message}");
+                }
+            }
+
+            return new MagicSystemResponse<List<Assembly>>
+            {
+                Success = true,
+                Message = "All assemblies loaded successfully.",
+                Result = loadedAssemblies
+            };
+        }
+
         public static async Task<List<MagicSystemResponse>> ValidateAndInstallPackages(string workingPath, string[] packageNames)
         {
             Console.Clear();
@@ -22,7 +91,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
             if (packageListString.Success == false)
             {
                 Console.WriteLine($"Something went wrong trying to detect the packages downloaded. " +
-                    $"Sending you back shortly.. Message provided was: {packageListString?.Message??"NO MESSAGE PROVIDED"}");
+                    $"Sending you back shortly.. Message provided was: {packageListString?.Message ?? "NO MESSAGE PROVIDED"}");
                 await Task.Delay(3500);
             }
 
@@ -76,7 +145,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
         /// <param name="arguments">The dotnet CLI arguments (e.g., "tool list -g")</param>
         /// <param name="workingDirectory">Optional working directory for the command. If provided, executes within that path.</param>
         /// <returns>A MagicSystemResponse containing success status and full output.</returns>
-        public static async Task<MagicSystemResponse> RunDotnetCommandAsync(string arguments, 
+        public static async Task<MagicSystemResponse> RunDotnetCommandAsync(string arguments,
             string? workingDirectory = null, string fileName = "dotnet")
         {
             var response = new MagicSystemResponse();
@@ -175,7 +244,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
             return DoesPackageExist(packageName, response);
         }
 
-        public static MagicSystemResponse<bool> DoesPackageExist(string packageName, 
+        public static MagicSystemResponse<bool> DoesPackageExist(string packageName,
             MagicSystemResponse getPackageListStringResponse)
         {
             // Validate input early
@@ -251,7 +320,7 @@ namespace Magic.GeneralSystem.Toolkit.Helpers.Dotnet
         /// <param name="workingDirectory">Optional working directory for the command. If provided, executes within that path.</param>
         /// <param name="updateIfInstalled">If true, updates the tool if it is already installed.</param>
         /// <param name="installGlobally">If true, installs the tool globally.</param>
-        public static async Task<MagicSystemResponse> InstallOrUpdateToolAsync(string toolName, 
+        public static async Task<MagicSystemResponse> InstallOrUpdateToolAsync(string toolName,
             string? workingDirectory,
             bool updateIfInstalled = false, bool installGlobally = false)
         {
